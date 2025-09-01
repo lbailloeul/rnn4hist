@@ -120,8 +120,8 @@ def main():
                        help='Number of training epochs')
     parser.add_argument('--batch_size', type=int, default=32, 
                        help='Training batch size')
-    parser.add_argument('--img_size', nargs=2, type=int, default=[224, 224], 
-                       help='Image size for CNN')
+    parser.add_argument('--n_bins', type=int, default=300,
+                       help='Number of histogram bins')
     parser.add_argument('--results_dir', default='training_results', 
                        help='Training results directory')
     
@@ -140,7 +140,7 @@ def main():
     print(f"📊 Samples: {args.num_samples:,}")
     print(f"🏃 Epochs: {args.epochs}")
     print(f"📦 Batch Size: {args.batch_size}")
-    print(f"🖼️ Image Size: {args.img_size}")
+    print(f"📊 Histogram Bins: {args.n_bins}")
     print(f"🎲 Random Seed: {args.seed}")
     print(f"📁 Dataset: {args.dataset_dir}")
     print(f"📁 Results: {args.results_dir}")
@@ -221,7 +221,7 @@ def main():
             '--output_dir', args.results_dir,
             '--epochs', str(args.epochs),
             '--batch_size', str(args.batch_size),
-            '--img_size', str(args.img_size[0]), str(args.img_size[1])
+            '--n_bins', str(args.n_bins)
         ]
         
         if not run_command(training_cmd, "CNN training"):
