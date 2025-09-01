@@ -205,6 +205,20 @@ class SPSCNNTrainer:
         print(f"   Training data shape: {X_train.shape}")
         print(f"   Validation data shape: {X_val.shape}")
         
+        # Debug: Check actual class distributions in loaded data
+        print(f"\n🔍 Debug: Actual class distributions in loaded arrays:")
+        train_unique, train_counts = np.unique(y_train, return_counts=True)
+        val_unique, val_counts = np.unique(y_val, return_counts=True)
+        
+        print(f"   Training labels: {dict(zip(train_unique, train_counts))}")
+        print(f"   Validation labels: {dict(zip(val_unique, val_counts))}")
+        
+        for label, count in zip(train_unique, train_counts):
+            print(f"   Train label {label}: {count} ({count/len(y_train)*100:.1f}%)")
+        
+        for label, count in zip(val_unique, val_counts):
+            print(f"   Val label {label}: {count} ({count/len(y_val)*100:.1f}%)")
+        
         # Save split metadata
         train_metadata.to_csv(self.output_dir / 'train_metadata.csv', index=False)
         val_metadata.to_csv(self.output_dir / 'val_metadata.csv', index=False)
