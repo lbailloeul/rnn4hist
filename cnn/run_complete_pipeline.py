@@ -62,22 +62,19 @@ def check_dependencies():
     print("🔍 Checking dependencies...")
     
     required_packages = [
-        'numpy', 'pandas', 'matplotlib', 'seaborn', 
-        'scikit-learn', 'tensorflow', 'PIL'
+        ('numpy', 'numpy'), ('pandas', 'pandas'), ('matplotlib', 'matplotlib'), 
+        ('seaborn', 'seaborn'), ('scikit-learn', 'sklearn'), ('tensorflow', 'tensorflow'), ('PIL', 'PIL')
     ]
     
     missing_packages = []
     
-    for package in required_packages:
+    for display_name, import_name in required_packages:
         try:
-            if package == 'PIL':
-                import PIL
-            else:
-                __import__(package)
-            print(f"   ✅ {package}")
+            __import__(import_name)
+            print(f"   ✅ {display_name}")
         except ImportError:
-            print(f"   ❌ {package}")
-            missing_packages.append(package)
+            print(f"   ❌ {display_name}")
+            missing_packages.append(display_name)
     
     if missing_packages:
         print(f"\n⚠️  Missing packages: {', '.join(missing_packages)}")
@@ -192,15 +189,20 @@ def main():
             good_dir = dataset_path / 'good'
             bad_dir = dataset_path / 'bad'
             
-            if metadata_path.exists() and good_dir.exists() and bad_dir.exists():
-                good_count = len(list(good_dir.glob('*.png')))
-                bad_count = len(list(bad_dir.glob('*.png')))
-                total_count = good_count + bad_count
+            if metadata_path.exists():
+                good_count = len(list(good_dir.glob('*.png'))) if good_dir.exists() else 0
+                bad_count = len(list(bad_dir.glob('*.png'))) if bad_dir.exists() else 0
+                main_count = len(list(dataset_path.glob('hist_*.png')))
+                total_count = good_count + bad_count + main_count
                 
                 print(f"   ✅ Dataset created successfully:")
                 print(f"      Total: {total_count:,} histograms")
-                print(f"      GOOD: {good_count:,} ({good_count/total_count*100:.1f}%)")
-                print(f"      BAD: {bad_count:,} ({bad_count/total_count*100:.1f}%)")
+                if total_count > 0:
+                    if good_count + bad_count > 0:
+                        print(f"      GOOD: {good_count:,} ({good_count/total_count*100:.1f}%)")
+                        print(f"      BAD: {bad_count:,} ({bad_count/total_count*100:.1f}%)")
+                    if main_count > 0:
+                        print(f"      Generated: {main_count:,} histograms (not yet classified)")
             else:
                 print(f"   ⚠️ Dataset structure incomplete")
                 success = False

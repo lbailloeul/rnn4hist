@@ -26,6 +26,7 @@ matplotlib.use('Agg')
 from sklearn.preprocessing import StandardScaler
 import sys
 import os
+import math
 from datetime import datetime
 
 # Try to import ROOT, fallback if not available
@@ -68,15 +69,23 @@ class SPSDataGenerator:
             'hist_range': (0, 300)  # ADU range
         }
         
-        # Load SVM model if provided
+        # Load SVM model if provided, or try to load from data-analysis
         if svm_model_path:
             self.load_svm_model(svm_model_path)
         else:
-            print("⚠️  No SVM model provided, will generate without labeling")
+            print("🔍 No SVM model path provided, attempting to load from data-analysis...")
+            self.load_svm_model(None)
             
     def load_svm_model(self, model_path):
         """Load pre-trained SVM model and scaler"""
         try:
+            if model_path:
+                # Load from specific file (not implemented yet)
+                print(f"🔄 Loading SVM model from {model_path}...")
+                # TODO: Implement loading from pickle file
+                print("❌ Loading from file not implemented yet")
+                return
+            
             # Load from data-analysis results
             sys.path.append('../data-analysis')
             from analyze import SPSAnalyzer
@@ -117,7 +126,7 @@ class SPSDataGenerator:
         
         for k in range(int(npeaks) + 1):
             uk = mu_avg + k * lambda_ct
-            G = mu_avg * np.power(uk, k - 1) * np.exp(-uk) / np.math.factorial(k) if k > 0 else np.exp(-mu_avg)
+            G = mu_avg * np.power(uk, k - 1) * np.exp(-uk) / math.factorial(k) if k > 0 else np.exp(-mu_avg)
             sk2 = sigma_0**2 + k * sigma_gain**2
             dx = x - mu_0 - k * gain
             fitval += N * G * np.exp(-0.5 * dx**2 / sk2) / np.sqrt(2 * np.pi) / np.sqrt(sk2)
@@ -213,30 +222,63 @@ class SPSDataGenerator:
             
         return fitval
         
-    def save_histogram_image(self, hist_counts, bin_edges, filepath, params_row, label=None):
-        """Save histogram as PNG image for CNN training"""
-        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+    def save_histogram_root(self, hist_counts, bin_edges, filepath, params_row, label=None):
+        """Save histogram as ROOT file for CNN training"""
+        try:
+            if not hasattr(self, 'ROOT_available') or not self.ROOT_available:
+                # Fallback to numpy arrays saved as .npz files
+                self.save_histogram_numpy(hist_counts, bin_edges, filepath, params_row, label)
+                return
+                
+            import ROOT
+            
+            # Create ROOT file
+            root_file = ROOT.TFile(str(filepath), "RECREATE")
+            
+            # Create histogram
+            hist_name = f"hist_{filepath.stem}"
+            hist = ROOT.TH1D(hist_name, f"SPS Histogram", len(bin_edges)-1, bin_edges[0], bin_edges[-1])
+            
+            # Fill histogram with bin contents
+            for i, count in enumerate(hist_counts):
+                hist.SetBinContent(i+1, count)  # ROOT bins start at 1
+            
+            # Set histogram metadata
+            hist.SetTitle(f"σ_G={params_row['Sigma_Gain']:.2f}, σ_0={params_row['Sigma_0']:.2f}, μ_p={params_row['Mu_p']:.2f}")
+            hist.GetXaxis().SetTitle("ADU")
+            hist.GetYaxis().SetTitle("Counts")
+            
+            # Add label information as user info
+            if label is not None:
+                hist.GetListOfFunctions().Add(ROOT.TNamed("label", str(label)))
+                hist.GetListOfFunctions().Add(ROOT.TNamed("label_text", "GOOD" if label == 1 else "BAD"))
+            
+            # Write and close
+            hist.Write()
+            root_file.Close()
+            
+        except Exception as e:
+            print(f"⚠️ ROOT save failed, using numpy fallback: {e}")
+            self.save_histogram_numpy(hist_counts, bin_edges, filepath, params_row, label)
+    
+    def save_histogram_numpy(self, hist_counts, bin_edges, filepath, params_row, label=None):
+        """Fallback: Save histogram as numpy arrays"""
+        # Change extension to .npz
+        npz_filepath = filepath.with_suffix('.npz')
         
-        # Plot histogram
-        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-        ax.bar(bin_centers, hist_counts, width=bin_edges[1]-bin_edges[0], 
-               alpha=0.7, color='blue', edgecolor='black', linewidth=0.5)
+        # Save histogram data and metadata
+        save_data = {
+            'bin_counts': hist_counts,
+            'bin_edges': bin_edges,
+            'sigma_gain': params_row['Sigma_Gain'],
+            'sigma_0': params_row['Sigma_0'],
+            'mu_p': params_row['Mu_p']
+        }
         
-        ax.set_xlabel('ADU')
-        ax.set_ylabel('Counts')
-        ax.set_title(f'SPS Histogram (σ_G={params_row["Sigma_Gain"]:.2f}, σ_0={params_row["Sigma_0"]:.2f}, μ_p={params_row["Mu_p"]:.2f})')
-        ax.grid(True, alpha=0.3)
-        
-        # Add label if available
         if label is not None:
-            label_text = 'GOOD' if label == 1 else 'BAD'
-            ax.text(0.05, 0.95, f'Label: {label_text}', transform=ax.transAxes, 
-                   fontsize=12, verticalalignment='top',
-                   bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-        
-        plt.tight_layout()
-        plt.savefig(filepath, dpi=150, bbox_inches='tight')
-        plt.close()
+            save_data['label'] = label
+            
+        np.savez_compressed(npz_filepath, **save_data)
         
     def generate_dataset(self):
         """Generate complete dataset with SVM labeling"""
@@ -283,13 +325,16 @@ class SPSDataGenerator:
             if labels is not None:
                 label = int(labels[i])
                 subdir = 'good' if label == 1 else 'bad'
-                filepath = self.output_dir / subdir / f'hist_{i:06d}.png'
+                # Use .root extension if ROOT available, otherwise .npz
+                file_ext = '.root' if has_root else '.npz'
+                filepath = self.output_dir / subdir / f'hist_{i:06d}{file_ext}'
             else:
-                filepath = self.output_dir / f'hist_{i:06d}.png'
+                file_ext = '.root' if has_root else '.npz'
+                filepath = self.output_dir / f'hist_{i:06d}{file_ext}'
                 label = None
             
-            # Save histogram image
-            self.save_histogram_image(hist_counts, bin_edges, filepath, params_row, label)
+            # Save histogram as ROOT file or numpy array
+            self.save_histogram_root(hist_counts, bin_edges, filepath, params_row, label)
             
             # Save metadata
             metadata_row = {

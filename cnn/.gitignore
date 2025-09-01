@@ -1,0 +1,49 @@
+# Python virtual environment
+cnn_env/
+
+# Temporary data and results
+dataset/
+test_dataset/
+test_root_dataset/
+training_results/
+outputs/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# PyCharm
+.idea/
+
+# VSCode
+.vscode/
+
+# Model files (if large)
+*.h5
+*.keras
+*.pkl
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*~
